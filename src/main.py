@@ -30,7 +30,7 @@ class MyApp(QApplication):
         # TODO: Personalisable depuis les préférences
         self.normal_color = "white"
         self.hdd_read_color = "darkblue"
-        self.hdd_write_color = "green"
+        self.hdd_write_color = "darkred"
 
         self.color = self.normal_color
         self.current_icon_index = 0
