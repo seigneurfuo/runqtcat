@@ -1,3 +1,4 @@
-[submodule "gnome-runcat"]
-	path = gnome-runcat
+
+[submodule "src/gnome-runcat"]
+	path = src/gnome-runcat
 	url = https://github.com/win0err/gnome-runcat

@@ -21,7 +21,7 @@ class MyApp(QApplication):
         self.settings = configparser.ConfigParser()
 
         # Icons
-        icons_folderpath = "../gnome-runcat/src/icons/cat/"
+        icons_folderpath = os.path.join(os.path.dirname(__file__), "gnome-runcat/src/icons/cat/")
 
         self.sleeping_icon = QIcon(os.path.join(icons_folderpath, "my-sleeping-symbolic.svg"))
         self.running_icons = [
