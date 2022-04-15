@@ -8,8 +8,8 @@ import pathlib
 import configparser
 
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QDialog, QMenu, QSpinBox, QGridLayout, QLabel, QCheckBox
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QDialog, QMenu, QSpinBox, QGridLayout, QLabel, QCheckBox, QLayout
+from PyQt6.QtCore import QTimer, Qt, QSize
 
 __author__ = "seigneurfuo"
 __version__ = "2022.04.16"
@@ -188,6 +188,7 @@ class SettingsWindow(QDialog):
         self.setWindowTitle(self.tr("Settings"))
 
         layout = QGridLayout()
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
 
         layout.addWidget(QLabel(self.tr("Sleeping trigger if CPU usage is smaller than:")), 0, 0)
         self.sleeping_threshold_spinbox = QSpinBox()
@@ -216,17 +217,15 @@ class SettingsWindow(QDialog):
         layout.addWidget(self.hdd_activity_indicator_checkbox, 3, 1)
 
         # About section
-        layout.addWidget(QLabel(self.tr("Program:") + __author__), 4, 0)
-        layout.addWidget(
-            QLabel("<a href=\"https://github.com/seigneurfuo/RunQtCat\">github.com/seigneurfuo/RunQtCat</a>"), 4, 1)
+        layout.addWidget(QLabel(self.tr("Program:")), 4, 0)
+        layout.addWidget(QLabel(f"{__author__} <a href=\"https://github.com/seigneurfuo/RunQtCat\">github.com/seigneurfuo/RunQtCat</a>"), 4, 1)
 
-        layout.addWidget(QLabel(self.tr("Original RunCat program:") + "Kyomesuke"), 6, 0)
-        url2_label = QLabel(
-            "<a href=\"https://kyome.io/runcat/index.html?lang=en\">kyome.io/runcat/index.html?lang=en</a>")
+        layout.addWidget(QLabel(self.tr("Original RunCat program:")), 6, 0)
+        url2_label = QLabel("Kyomesuke <a href=\"https://kyome.io/runcat/index.html?lang=en\">kyome.io/runcat/index.html?lang=en</a>")
         layout.addWidget(url2_label, 6, 1)
 
-        layout.addWidget(QLabel(self.tr("Cat icons:") + "win0err"), 7, 0)
-        url3_label = QLabel("<a href=\"https://github.com/win0err/gnome-runcat\">github.com/win0err/gnome-runcat</a>")
+        layout.addWidget(QLabel(self.tr("Cat icons:")), 7, 0)
+        url3_label = QLabel("win0err <a href=\"https://github.com/win0err/gnome-runcat\">github.com/win0err/gnome-runcat</a>")
 
         layout.addWidget(url3_label, 7, 1)
 
