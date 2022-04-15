@@ -1,16 +1,18 @@
 import configparser
 import os
+import time
 
 import psutil
 import sys
 import pathlib
 import configparser
 
-from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QDialog, QMenu, QSpinBox, QGridLayout, QLabel
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
+from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QDialog, QMenu, QSpinBox, QGridLayout, QLabel, QCheckBox
 from PyQt6.QtCore import QTimer, Qt
 
-__version__ = "2022.04.15"
+__author__ = "seigneurfuo"
+__version__ = "2022.04.16"
 
 
 class MyApp(QApplication):
@@ -18,25 +20,26 @@ class MyApp(QApplication):
         super(QApplication, self).__init__(sys.argv)
         self.setQuitOnLastWindowClosed(False)
 
-        self.settings = configparser.ConfigParser()
+        # Variables & Co.
+        self.config_parser = configparser.ConfigParser()
+        self.settings = None
+        self.config_filepath = None
 
-        # Icons
-        icons_folderpath = os.path.join(os.path.dirname(__file__), "gnome-runcat/src/icons/cat/")
-
-        self.sleeping_icon = QIcon(os.path.join(icons_folderpath, "my-sleeping-symbolic.svg"))
-        self.running_icons = [
-            QIcon(os.path.join(icons_folderpath, "my-running-0-symbolic.svg")),
-            QIcon(os.path.join(icons_folderpath, "my-running-1-symbolic.svg")),
-            QIcon(os.path.join(icons_folderpath, "my-running-2-symbolic.svg")),
-            QIcon(os.path.join(icons_folderpath, "my-running-3-symbolic.svg")),
-            QIcon(os.path.join(icons_folderpath, "my-running-4-symbolic.svg")),
-        ]
-
-        # Variables
+        self.icons = {}
+        self.color = "white"
         self.current_icon_index = 0
+        self.icons_folderpath = os.path.join(os.path.dirname(__file__), "gnome-runcat/src/icons/cat/")
 
+        self.cpu_percent = 0
+        self.interval = 0
+        self.last_read_count = 0
+        self.last_write_count = 0
+
+        # Fonctions lancées pour initialiser un peut tout
+        self.prepare_icons_ressources()
         self.init_ui()
         self.load_settings()
+
         self.tray.setVisible(True)
 
         # QTimer
@@ -48,13 +51,13 @@ class MyApp(QApplication):
         # Load translation (if any)
 
         self.tray = QSystemTrayIcon(self)
-        self.tray.setIcon(self.sleeping_icon)
+        self.tray.setIcon(self.icons[self.color][0])
 
         # Menu clic droit
         menu = QMenu()
         menu.addAction(self.tr("v.") + " " + __version__)
 
-        show_settings_action = menu.addAction(QIcon.fromTheme("document-properties"), self.tr("Settings"))
+        show_settings_action = menu.addAction(QIcon.fromTheme("preferences"), self.tr("Settings"))
         show_settings_action.triggered.connect(self.show_settings)
 
         exit_action = menu.addAction(QIcon.fromTheme("window-close"), self.tr("Close"))
@@ -68,92 +71,152 @@ class MyApp(QApplication):
         self.defaut_settings = {
             "sleeping_threshold": 15,
             "animation_min_duration": 50,
-            "animation_max_duration": 500
+            "animation_max_duration": 500,
+            "hdd_activity_indicator": 0
         }
 
-        if not os.path.exists(self.config_filepath):
-            self.settings["settings"] = self.defaut_settings
+        if os.path.exists(self.config_filepath):
+            self.config_parser.read(self.config_filepath)
+            self.settings = self.config_parser["settings"]
         else:
-            self.settings.read(self.config_filepath)
+            self.settings = self.defaut_settings
 
     def save_settings(self):
+        self.config_parser["settings"] = self.settings
         with open(self.config_filepath, "w") as config_file:
-            self.settings.write(config_file)
+            self.config_parser.write(config_file)
 
     def close(self):
         self.tray.setVisible(False)
         self.save_settings()
         exit(0)
 
+    def prepare_icons_ressources(self):
+        """Charge les icons et ajoute deux couleurs couleurs supplémentaires si on """
+        icons = ["my-sleeping-symbolic.svg", "my-running-0-symbolic.svg", "my-running-1-symbolic.svg",
+                 "my-running-2-symbolic.svg",
+                 "my-running-3-symbolic.svg", "my-running-4-symbolic.svg"]
+
+        for color in ["white", "red", "blue"]:  # TODO: Permetre de changer les couleurs dans les options
+            for filename in icons:
+                if color not in self.icons.keys():
+                    self.icons[color] = []
+
+                qpixmap = QPixmap(os.path.join(self.icons_folderpath, filename))
+                colored_qpixmap = color_svg(qpixmap, color)
+                colored_qicon = QIcon(colored_qpixmap)
+                self.icons[color].append(colored_qicon)
+
     def show_settings(self):
-        settings_window = SettingsWindow(self.settings)
+        settings_window = SettingsWindow(self)
         settings_window.exec()
-        settings_window.get_settings()
+        settings_window.update_settings_from_gui()
 
     def tick(self):
-        cpu_percent = psutil.cpu_percent()
+        self.get_psutil_data()
 
+        # Si activation de la led
+        if self.settings["hdd_activity_indicator"] == "1" and (self.current_icon_index + 1) > int((self.cpu_percent / 25)):  # Permet d'éviter de faire flasher la couleur et attends un cicle en fonction du pourcenatge du cpu
+            self.set_icon_color()
+
+        self.set_icon_image()
+
+        # Calcul de la vitesse
+        self.timer.setInterval(self.interval)
+
+    def get_psutil_data(self):
+        self.cpu_percent = psutil.cpu_percent()
         # Inversion du pourcentage
-        invert_cpu_percent = (100 - cpu_percent)
-        percent_speed = (int(self.settings["settings"]["animation_max_duration"]) - int(
-            self.settings["settings"]["animation_min_duration"])) / 100
-        interval = (percent_speed * invert_cpu_percent) + int(self.settings["settings"]["animation_min_duration"])
+        invert_cpu_percent = (100 - self.cpu_percent)
+        percent_speed = (int(self.settings["animation_max_duration"]) - int(
+            self.settings["animation_min_duration"])) / 100
+        self.interval = int((percent_speed * invert_cpu_percent) + int(self.settings["animation_min_duration"]))
 
+    def set_icon_color(self):
+        current_read_count = int(psutil.disk_io_counters()[0])
+        current_write_count = int(psutil.disk_io_counters()[1])
+
+        # Threashold
+        read = (current_read_count > self.last_read_count)
+        write = (current_write_count > self.last_write_count)
+
+        if read and self.color != "blue":
+            self.last_read_count = current_read_count
+            self.color = "blue"
+
+        elif write and self.color != "red":
+            self.last_write_count = current_write_count
+            self.color = "red"
+
+        elif self.color != "white":
+            self.color = "white"
+
+    def set_icon_image(self):
         # Affichage de l'icone
-        sleeping = cpu_percent < int(self.settings["settings"]["sleeping_threshold"])
+        sleeping = self.cpu_percent < int(self.settings["sleeping_threshold"])
         if sleeping:
-            self.tray.setIcon(self.sleeping_icon)
+            self.tray.setIcon(self.icons[self.color][0])
         else:
-
-            self.tray.setIcon(self.running_icons[self.current_icon_index])
+            self.tray.setIcon(self.icons[self.color][self.current_icon_index])
 
             # Boucle d'animation
-            if self.current_icon_index == len(self.running_icons) - 1:
+            if self.current_icon_index == len(self.icons[self.color]) - 1:
                 self.current_icon_index = 1
             else:
                 self.current_icon_index += 1
 
         # Affichage de la durée (tooltip)
-        self.tray.setToolTip(f"CPU: {cpu_percent}%")
-
-        # Calcul de la vitesse
-        self.timer.setInterval(int(interval))
+        self.tray.setToolTip(f"CPU: {self.cpu_percent}%")
 
 
 class SettingsWindow(QDialog):
-    def __init__(self, settings):
+    def __init__(self, parent):
         super(QDialog, self).__init__(None)
-        self.setWindowTitle(self.tr("Settings"))
-        self.settings = settings
+        self.parent = parent
+        self.settings = self.parent.settings
 
         self.init_ui()
+        self.init_events()
+
+    def init_events(self):
+        self.sleeping_threshold_spinbox.valueChanged.connect(self.update_settings_from_gui)
+        self.animation_min_duration_spinbox.valueChanged.connect(self.update_settings_from_gui)
+        self.animation_max_duration_spinbox.valueChanged.connect(self.update_settings_from_gui)
+        self.hdd_activity_indicator_checkbox.clicked.connect(self.update_settings_from_gui)
 
     def init_ui(self):
+        self.setWindowTitle(self.tr("Settings"))
+
         layout = QGridLayout()
 
-        layout.addWidget(QLabel(self.tr("Sleeping threshold:")), 0, 0)
+        layout.addWidget(QLabel(self.tr("Sleeping trigger if CPU usage is smaller than:")), 0, 0)
         self.sleeping_threshold_spinbox = QSpinBox()
         self.sleeping_threshold_spinbox.setMinimum(1)
         self.sleeping_threshold_spinbox.setMaximum(99)
-        self.sleeping_threshold_spinbox.setValue(int(self.settings["settings"]["sleeping_threshold"]))
+        self.sleeping_threshold_spinbox.setValue(int(self.settings["sleeping_threshold"]))
         layout.addWidget(self.sleeping_threshold_spinbox, 0, 1)
 
         layout.addWidget(QLabel(self.tr("Minimal frame duration (ms):")), 1, 0)
         self.animation_min_duration_spinbox = QSpinBox()
         self.animation_min_duration_spinbox.setMinimum(10)
         self.animation_min_duration_spinbox.setMaximum(10000)
-        self.animation_min_duration_spinbox.setValue(int(self.settings["settings"]["animation_min_duration"]))
+        self.animation_min_duration_spinbox.setValue(int(self.settings["animation_min_duration"]))
         layout.addWidget(self.animation_min_duration_spinbox, 1, 1)
 
         layout.addWidget(QLabel(self.tr("Maximal frame duration (ms):")), 2, 0)
         self.animation_max_duration_spinbox = QSpinBox()
         self.animation_max_duration_spinbox.setMinimum(10)
         self.animation_max_duration_spinbox.setMaximum(10000)
-        self.animation_max_duration_spinbox.setValue(int(self.settings["settings"]["animation_max_duration"]))
+        self.animation_max_duration_spinbox.setValue(int(self.settings["animation_max_duration"]))
         layout.addWidget(self.animation_max_duration_spinbox, 2, 1)
 
+        layout.addWidget(QLabel(self.tr("Enable hard drive activity color status:")), 3, 0)
+        self.hdd_activity_indicator_checkbox = QCheckBox()
+        self.hdd_activity_indicator_checkbox.setChecked(bool(int(self.settings["hdd_activity_indicator"])))
+        layout.addWidget(self.hdd_activity_indicator_checkbox, 3, 1)
+
         # About section
-        layout.addWidget(QLabel(self.tr("Program:") + "seigneufuo"), 4, 0)
+        layout.addWidget(QLabel(self.tr("Program:") + __author__), 4, 0)
         layout.addWidget(
             QLabel("<a href=\"https://github.com/seigneurfuo/RunQtCat\">github.com/seigneurfuo/RunQtCat</a>"), 4, 1)
 
@@ -169,11 +232,21 @@ class SettingsWindow(QDialog):
 
         self.setLayout(layout)
 
-    def get_settings(self):
-        self.settings["settings"]["sleeping_threshold"] = str(self.sleeping_threshold_spinbox.value())
-        self.settings["settings"]["animation_min_duration"] = str(self.animation_min_duration_spinbox.value())
-        self.settings["settings"]["animation_max_duration"] = str(self.animation_max_duration_spinbox.value())
+    def update_settings_from_gui(self):
+        self.settings["sleeping_threshold"] = str(self.sleeping_threshold_spinbox.value())
+        self.settings["animation_min_duration"] = str(self.animation_min_duration_spinbox.value())
+        self.settings["animation_max_duration"] = str(self.animation_max_duration_spinbox.value())
+        self.settings["hdd_activity_indicator"] = str(int(self.hdd_activity_indicator_checkbox.isChecked()))
 
 
-app = MyApp()
-app.exec()
+def color_svg(img, color):
+    qp = QPainter(img)
+    qp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+    qp.fillRect(img.rect(), QColor(color))
+    qp.end()
+    return img
+
+
+if __name__ == "__main__":
+    app = MyApp()
+    app.exec()
