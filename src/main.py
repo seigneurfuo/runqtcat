@@ -26,8 +26,13 @@ class MyApp(QApplication):
         self.config_filepath = None
 
         self.icons = {}
-        self.default_color = "white"
-        self.color = self.default_color
+
+        # TODO: Personalisable depuis les préférences
+        self.normal_color = "white"
+        self.hdd_read_color = "darkblue"
+        self.hdd_write_color = "green"
+
+        self.color = self.normal_color
         self.current_icon_index = 0
         self.icons_folderpath = os.path.join(os.path.dirname(__file__), "gnome-runcat/src/icons/cat/")
 
@@ -98,7 +103,7 @@ class MyApp(QApplication):
                  "my-running-2-symbolic.svg",
                  "my-running-3-symbolic.svg", "my-running-4-symbolic.svg"]
 
-        for color in ["white", "red", "blue"]:  # TODO: Permetre de changer les couleurs dans les options
+        for color in [self.normal_color, self.hdd_read_color, self.hdd_write_color]:  # TODO: Permetre de changer les couleurs dans les options
             for filename in icons:
                 if color not in self.icons.keys():
                     self.icons[color] = []
@@ -114,7 +119,7 @@ class MyApp(QApplication):
         settings_window.update_settings_from_gui()
 
         # Permet de remetre par défaut la couleur (corrige le bug si on désactive l'activité du disque, la couleur en cours reste sur l'icone)
-        self.color = self.default_color
+        self.color = self.normal_color
 
     def tick(self):
         self.get_psutil_data()
@@ -137,6 +142,7 @@ class MyApp(QApplication):
         self.interval = int((percent_speed * invert_cpu_percent) + int(self.settings["animation_min_duration"]))
 
     def set_icon_color(self):
+        # TODO: Changer le disque sur lequel on regader les mises à jours
         current_read_count = int(psutil.disk_io_counters()[0])
         current_write_count = int(psutil.disk_io_counters()[1])
 
@@ -144,16 +150,16 @@ class MyApp(QApplication):
         read = (current_read_count > self.last_read_count)
         write = (current_write_count > self.last_write_count)
 
-        if read and self.color != "blue":
+        if read and self.color != self.hdd_read_color:
             self.last_read_count = current_read_count
-            self.color = "blue"
+            self.color = self.hdd_read_color
 
-        elif write and self.color != "red":
+        elif write and self.color != self.hdd_write_color:
             self.last_write_count = current_write_count
-            self.color = "red"
+            self.color = self.hdd_write_color
 
-        elif self.color != "white":
-            self.color = "white"
+        elif self.color != self.normal_color:
+            self.color = self.normal_color
 
     def set_icon_image(self):
         # Affichage de l'icone
