@@ -26,7 +26,8 @@ class MyApp(QApplication):
         self.config_filepath = None
 
         self.icons = {}
-        self.color = "white"
+        self.default_color = "white"
+        self.color = self.default_color
         self.current_icon_index = 0
         self.icons_folderpath = os.path.join(os.path.dirname(__file__), "gnome-runcat/src/icons/cat/")
 
@@ -111,6 +112,9 @@ class MyApp(QApplication):
         settings_window = SettingsWindow(self)
         settings_window.exec()
         settings_window.update_settings_from_gui()
+
+        # Permet de remetre par défaut la couleur (corrige le bug si on désactive l'activité du disque, la couleur en cours reste sur l'icone)
+        self.color = self.default_color
 
     def tick(self):
         self.get_psutil_data()
