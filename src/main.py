@@ -15,7 +15,7 @@ __author__ = "seigneurfuo"
 __version__ = "2022.04.16"
 
 
-class MyApp(QApplication):
+class Application(QApplication):
     def __init__(self):
         super(QApplication, self).__init__(sys.argv)
         self.setQuitOnLastWindowClosed(False)
@@ -43,8 +43,8 @@ class MyApp(QApplication):
 
         # Fonctions lancées pour initialiser un peut tout
         self.prepare_icons_ressources()
-        self.init_ui()
         self.load_settings()
+        self.init_ui()
 
         self.tray.setVisible(True)
 
@@ -61,7 +61,7 @@ class MyApp(QApplication):
 
         # Menu clic droit
         menu = QMenu()
-        menu.addAction(self.tr("v.") + " " + __version__)
+        menu.addAction(QIcon.fromTheme("dialog-information-symbolic"), self.tr("v.") + " " + __version__)
 
         show_settings_action = menu.addAction(QIcon.fromTheme("preferences"), self.tr("Settings"))
         show_settings_action.triggered.connect(self.show_settings)
@@ -72,7 +72,6 @@ class MyApp(QApplication):
         self.tray.setContextMenu(menu)
 
     def load_settings(self):
-        # Config
         self.config_filepath = os.path.join(pathlib.Path.home(), ".runqtcat.ini")
         self.defaut_settings = {
             "sleeping_threshold": 15,
@@ -257,5 +256,5 @@ def color_svg(img, color):
 
 
 if __name__ == "__main__":
-    app = MyApp()
+    app = Application()
     app.exec()
