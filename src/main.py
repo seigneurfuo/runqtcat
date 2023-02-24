@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QDialog, QMenu, QSpin
 from PyQt6.QtCore import QTimer, Qt, QSize
 
 __author__ = "seigneurfuo"
-__version__ = "2022.04.16"
+__version__ = "2022.06.22"
 
 
 class Application(QApplication):
@@ -61,7 +61,7 @@ class Application(QApplication):
 
         # Menu clic droit
         menu = QMenu()
-        menu.addAction(QIcon.fromTheme("dialog-information-symbolic"), self.tr("v.") + " " + __version__)
+        menu.addAction(QIcon.fromTheme("dialog-information"), self.tr("v.") + " " + __version__)
 
         show_settings_action = menu.addAction(QIcon.fromTheme("preferences"), self.tr("Settings"))
         show_settings_action.triggered.connect(self.show_settings)
@@ -220,7 +220,7 @@ class SettingsWindow(QDialog):
         self.animation_max_duration_spinbox.setValue(int(self.settings["animation_max_duration"]))
         layout.addWidget(self.animation_max_duration_spinbox, 2, 1)
 
-        layout.addWidget(QLabel(self.tr("Enable hard drive activity color status:")), 3, 0)
+        layout.addWidget(QLabel(self.tr("Enable hard drive activity color status: (read: blue, write: red)")), 3, 0)
         self.hdd_activity_indicator_checkbox = QCheckBox()
         self.hdd_activity_indicator_checkbox.setChecked(bool(int(self.settings["hdd_activity_indicator"])))
         layout.addWidget(self.hdd_activity_indicator_checkbox, 3, 1)
